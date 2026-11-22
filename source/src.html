@@ -337,9 +337,11 @@ function typeBox(x,cb){
   $("#skip").onclick=fin;
 }
 
-/* Réponse à voix haute : dictée du clavier (iPhone, ou micro du navigateur refusé), reconnaissance du navigateur ailleurs, et en dernier recours on dit le morceau puis on compare soi-même */
+/* Réponse à voix haute : bouton « Parler » (le micro reprend tout seul après une pause), dictée du clavier en secours,
+   et en dernier recours on dit le morceau puis on compare soi-même */
 function voiceBox(x,done,toKeys){
-  const len=x.e-x.s+1,A=$("#answer"),exp=D.substr(x.s,len);
+  const len=x.e-x.s+1,A=$("#answer"),exp=D.substr(x.s,len),cap=len+10;
+  const shown=d=>esc(plain(x.s,d.slice(0,len)))+(d.length>len?' <span class="ko">+'+(d.length-len)+"</span>":"");
   const selfCheck=why=>{
     stopRec();
     A.innerHTML=(why?'<p class="muted">'+why+"</p>":"")+
@@ -351,55 +353,89 @@ function voiceBox(x,done,toKeys){
     };
     $("#tokeys").onclick=toKeys;
   };
-  const dictBox=why=>{
+  const dictBox=(why,keep)=>{
     stopRec();
     A.innerHTML=(why?'<p class="muted">'+why+"</p>":"")+
       '<div id="vout" class="note big out vout" aria-live="polite"></div>'+
       '<p class="muted">Touche la zone de dictée, puis le micro du clavier, et dis le morceau. Les chiffres s’affichent au-dessus avec ton découpage.</p>'+
       '<textarea id="dict" class="ans dictin" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Zone de dictée" aria-label="Zone de dictée"></textarea>'+
-      '<div class="row"><button class="btn primary" id="vcheck" type="button">Vérifier</button><button class="btn ghost" id="vreset" type="button">Effacer</button></div>'+
-      '<div class="row"><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button><button class="btn ghost" id="toself" type="button">Afficher et comparer</button></div>';
+      '<div class="row"><button class="btn primary" id="vcheck" type="button">Vérifier</button><button class="btn" id="vdel" type="button">Effacer un chiffre</button></div>'+
+      '<div class="row"><button class="btn ghost" id="vreset" type="button">Tout effacer</button><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button></div>'+
+      '<div class="row"><button class="btn ghost" id="toself" type="button">Afficher et comparer</button></div>';
     const ta=$("#dict"),out=$("#vout");let fin=false;
-    const digits=()=>frToDigits(ta.value).slice(0,len);
+    const digits=()=>frToDigits(ta.value).slice(0,cap);
     const check=()=>{if(fin)return;fin=true;ta.blur();done(digits(),undefined,true);};
-    ta.addEventListener("input",()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d===exp)check();});
+    const show=()=>{const d=digits();out.innerHTML=shown(d);if(d.slice(0,len)===exp)check();};
+    if(keep)ta.value=plain(x.s,keep.slice(0,len));
+    ta.addEventListener("input",show);
     $("#vcheck").onclick=check;
-    $("#vreset").onclick=()=>{ta.value="";out.innerHTML="";ta.focus();};
+    $("#vdel").onclick=()=>{ta.value=plain(x.s,digits().slice(0,-1).slice(0,len));show();};
+    $("#vreset").onclick=()=>{ta.value="";show();ta.focus();};
     $("#tokeys").onclick=toKeys;
     $("#toself").onclick=()=>selfCheck("");
-    ta.focus();
+    show();ta.focus();
   };
   if(!SR||micOff){dictBox("");return;}
-  let prev="",cur="",fin=false;
   A.innerHTML='<div id="vout" class="note big out vout" aria-live="polite"></div>'+
-    '<p class="muted" id="vst">Touche « Parler » et dis le morceau, avec une petite pause entre tes groupes. Les chiffres s’affichent au fur et à mesure.</p>'+
-    '<div class="row"><button class="btn primary" id="talk" type="button">Parler</button><button class="btn" id="vcheck" type="button">Vérifier</button></div>'+
-    '<div class="row"><button class="btn ghost" id="vreset" type="button">Effacer</button><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button></div>'+
-    '<div class="row"><button class="btn ghost" id="todict" type="button">Le micro bloque ? Dictée du clavier</button></div>';
-  const out=$("#vout"),st=$("#vst"),talk=$("#talk");
-  const digits=()=>frToDigits(prev+" "+cur).slice(0,len);
-  const check=()=>{if(fin)return;fin=true;stopRec();done(digits(),undefined,true);};
-  const show=()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d===exp)check();};
+    '<p class="muted" id="vst">Touche « Parler » et dis le morceau. Tu peux faire des pauses, le micro reprend tout seul.</p>'+
+    '<div class="row"><button class="btn primary" id="talk" type="button">Parler</button><button class="btn" id="vdel" type="button" disabled>Effacer un chiffre</button></div>'+
+    '<div class="row"><button class="btn" id="vcheck" type="button">Vérifier</button><button class="btn ghost" id="vreset" type="button">Tout effacer</button></div>'+
+    '<div class="row"><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button><button class="btn ghost" id="todict" type="button">Le micro bloque ? Dictée du clavier</button></div>';
+  const out=$("#vout"),st=$("#vst"),talk=$("#talk"),del=$("#vdel");
+  /* base : chiffres déjà acquis (phrases terminées, corrections) ; sess : phrase en cours d'écoute */
+  let base="",sess="",fin=false,want=false,resume=false,mute=false,r=null,empty=0,watch=null;
   const fallback="Le micro du navigateur n’est pas disponible ici. Utilise la dictée du clavier.";
-  const start=()=>{
-    stopRec();prev+=" "+cur;cur="";
-    let r;
-    try{r=new SR();}catch(e){dictBox(fallback);return;}
-    r.lang="fr-FR";r.continuous=!IOS;r.interimResults=true;r.maxAlternatives=1;
-    r.onresult=e=>{let t="";for(let i=0;i<e.results.length;i++)t+=" "+e.results[i][0].transcript;cur=t;show();};
-    r.onerror=e=>{
-      if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){micOff=true;if(!fin)dictBox(fallback);}
-      else if(e.error!=="no-speech"&&e.error!=="aborted"){st.textContent="La reconnaissance a échoué ("+e.error+"). Touche « Parler » pour réessayer ou passe au clavier.";}
-    };
-    r.onend=()=>{if(rec===r){rec=null;if(!fin&&document.body.contains(talk)){talk.disabled=false;talk.textContent="Continuer";st.textContent="Micro arrêté. Touche « Continuer » pour reprendre, ou « Vérifier » si tu as fini.";}}};
-    try{r.start();rec=r;talk.disabled=true;talk.textContent="J’écoute…";st.textContent="Dis le morceau, puis touche « Vérifier ».";}
-    catch(e){dictBox(fallback);}
+  const alive=()=>!fin&&document.body.contains(talk);
+  /* Reconstitue la phrase en ignorant les doublons : l'iPhone renvoie parfois des morceaux cumulés */
+  const sessText=e=>{
+    const parts=[];
+    for(let i=0;i<e.results.length;i++){
+      const t=e.results[i][0].transcript.trim();if(!t)continue;
+      const p=parts[parts.length-1];
+      if(p!==undefined&&t.startsWith(p))parts[parts.length-1]=t;
+      else if(p===undefined||!p.startsWith(t))parts.push(t);
+    }
+    return parts.join(" ");
   };
-  talk.onclick=start;
+  const digits=()=>(base+frToDigits(sess)).slice(0,cap);
+  const commit=()=>{base=digits();sess="";};
+  const check=()=>{if(fin)return;want=false;commit();fin=true;clearTimeout(watch);stopRec();done(base,undefined,true);};
+  const show=()=>{const d=digits();out.innerHTML=shown(d);del.disabled=!d.length;if(d.slice(0,len)===exp)check();};
+  const setUI=()=>{if(!alive())return;talk.textContent=want?"Pause":(digits()?"Continuer":"Parler");st.textContent=want?"J’écoute… Tu peux faire des pauses, le micro reprend tout seul.":"Micro en pause. Touche « "+talk.textContent+" » pour reprendre, ou « Vérifier » si tu as fini.";};
+  const arm=()=>{clearTimeout(watch);watch=setTimeout(()=>{if(want&&alive()&&!digits())st.textContent="Le micro ne transcrit rien ? Touche « Le micro bloque ? Dictée du clavier », tes chiffres seront gardés.";},8000);};
+  const listen=()=>{try{r.start();}catch(e){}arm();};
+  const begin=()=>{
+    if(!r){
+      try{r=new SR();}catch(e){dictBox(fallback,digits());return;}
+      r.lang="fr-FR";r.continuous=!IOS;r.interimResults=true;r.maxAlternatives=1;
+      r.onresult=e=>{if(mute)return;empty=0;sess=sessText(e);show();};
+      r.onerror=e=>{if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){micOff=true;want=false;if(alive())dictBox(fallback,digits());}};
+      r.onend=()=>{
+        mute=false;commit();show();
+        if(!alive())return;
+        if(resume){resume=false;want=true;}
+        if(want&&empty<4){empty++;setTimeout(()=>{if(want&&alive())listen();},200);}
+        else want=false;
+        setUI();
+      };
+      rec=r;
+    }
+    want=true;empty=0;listen();setUI();
+  };
+  const pause=()=>{want=false;try{r.stop();}catch(e){}setUI();};
+  talk.onclick=()=>{if(want)pause();else begin();};
+  del.onclick=()=>{
+    if(want){mute=true;resume=true;want=false;commit();try{r.abort();}catch(e){}}
+    else commit();
+    base=base.slice(0,-1);show();setUI();
+  };
+  $("#vreset").onclick=()=>{
+    if(want){mute=true;resume=true;want=false;try{r.abort();}catch(e){}}
+    base="";sess="";show();
+  };
   $("#vcheck").onclick=check;
-  $("#vreset").onclick=()=>{stopRec();prev="";cur="";out.innerHTML="";talk.disabled=false;talk.textContent="Parler";st.textContent="Touche « Parler » et dis le morceau.";};
   $("#tokeys").onclick=toKeys;
-  $("#todict").onclick=()=>dictBox("");
+  $("#todict").onclick=()=>{want=false;commit();dictBox("",base);};
 }
 
 function render(){
@@ -474,7 +510,7 @@ function paintVerdict(x,s,d,marks,ok,voice,snap,a0){
   const b=segStatus(x),move=a0===b?" Reste "+tag(b)+".":" Passe de "+tag(a0)+" à "+tag(b)+".";
   let h="";
   if(d!==null){
-    h+='<div class="label">'+(voice?"Ce que le micro a compris":"Ce que tu as tapé")+'</div><div class="note big out'+(ok?" ok":"")+'">'+(d?esc(plain(x.s,d)):"(rien)")+"</div>";
+    h+='<div class="label">'+(voice?"Ce que le micro a compris":"Ce que tu as tapé")+'</div><div class="note big out'+(ok?" ok":"")+'">'+(d?esc(plain(x.s,d.slice(0,x.e-x.s+1)))+(d.length>x.e-x.s+1?' <span class="ko">+'+(d.length-(x.e-x.s+1))+"</span>":""):"(rien)")+"</div>";
     if(ok)h+='<div class="verdict good">Juste.'+move+"</div>";
     else{
       const bad=marks.filter(v=>!v).length;

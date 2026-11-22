@@ -24,7 +24,7 @@ json.dump({"name":"Mille décimales de π","short_name":"π 1000","start_url":".
           {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
           {"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]},
  open('pwa/manifest.webmanifest','w'),ensure_ascii=False,indent=1)
-open('pwa/sw.js','w').write('''const C="pi1000-v6";
+open('pwa/sw.js','w').write('''const C="pi1000-v7";
 const FILES=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png","icon-maskable-512.png","apple-touch-icon.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(FILES)));self.skipWaiting();});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
