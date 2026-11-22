@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mille décimales de π</title>
+%%HEAD_EXTRA%%
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap" rel="stylesheet">
+<style>
+/* Mise en page : une colonne étroite, onglets en haut. Les chiffres s'affichent toujours avec le découpage de la note de l'utilisateur. */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --ink:#15191d; --muted:#5d6872; --line:#d8dcd6;
+  --accent:#2438d6; --accent-ink:#ffffff;
+  --good:#1c7c3f; --bad:#b3261e; --good-bg:#dff1e4; --bad-bg:#f8dcda;
+  --font-display:"Newsreader", Georgia, serif;
+  --font-body:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-note:-apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --fs:17px;
+  --r-bg:#f9cfca; --r-ink:#8a1c14; --f-bg:#fddcb5; --f-ink:#7a3b00; --c-bg:#f6e996; --c-ink:#584600; --s-bg:#c9edd3; --s-ink:#0d5020;
+  --rfs:32px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101316; --surface:#181c20; --ink:#eceee9; --muted:#9aa4ad; --line:#2a3036;
+    --accent:#8fa0ff; --accent-ink:#0e1230;
+    --good:#6fcf8c; --bad:#ff8f86; --good-bg:#17301f; --bad-bg:#3a1b19;
+    --r-bg:#5c1f1a; --r-ink:#ffb4ab; --f-bg:#5c3611; --f-ink:#ffc98f; --c-bg:#4c4212; --c-ink:#f3e08a; --s-bg:#17402a; --s-ink:#9be3b2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101316; --surface:#181c20; --ink:#eceee9; --muted:#9aa4ad; --line:#2a3036;
+  --accent:#8fa0ff; --accent-ink:#0e1230;
+  --good:#6fcf8c; --bad:#ff8f86; --good-bg:#17301f; --bad-bg:#3a1b19;
+  --r-bg:#5c1f1a; --r-ink:#ffb4ab; --f-bg:#5c3611; --f-ink:#ffc98f; --c-bg:#4c4212; --c-ink:#f3e08a; --s-bg:#17402a; --s-ink:#9be3b2;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.5}
+.wrap{max-width:620px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:baseline;gap:12px}
+header .pi{font-family:var(--font-display);font-weight:700;font-size:44px;line-height:1;color:var(--accent)}
+header h1{font-family:var(--font-display);font-weight:500;font-size:22px;margin:0;text-wrap:balance}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tab{appearance:none;border:0;background:transparent;color:var(--muted);font:600 14px var(--font-body);padding:10px 2px;border-radius:9px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.tab:focus-visible,.btn:focus-visible,.szb:focus-visible,.chip:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.badge{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:var(--bad);color:#fff;font-size:12px;line-height:20px}
+.tab[aria-selected="true"] .badge{background:var(--accent-ink);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.card h2{font-family:var(--font-display);font-size:24px;font-weight:700;margin:0;text-wrap:balance}
+.label{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted);margin:0}
+.mono{font-family:var(--font-mono)}
+/* Texte au format de la note : espaces et retours à la ligne conservés tels quels */
+.note{font-family:var(--font-note);font-size:var(--fs);line-height:1.45;white-space:pre-wrap;word-break:normal;overflow-wrap:normal;margin:0}
+.note.big{font-size:calc(var(--fs) * 1.35)}
+/* Onglet Réviser : chiffres environ deux fois plus grands, réglables à part */
+.rv .note{font-size:var(--rfs);line-height:1.3}
+.rv .note.big{font-size:calc(var(--rfs) * 1.35)}
+.toprow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sz{display:flex;gap:6px;flex-shrink:0}
+.szb{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:600 15px var(--font-body);width:44px;height:36px;border-radius:8px;cursor:pointer}
+.modes{display:flex;gap:6px;flex-wrap:wrap}
+.chip{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--muted);font:600 14px var(--font-body);padding:7px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-checked="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.howto{font-size:16px;font-weight:700;color:var(--ink)}
+.cuebox{display:flex;flex-direction:column;gap:4px}
+.cue{color:var(--muted)}
+.linebox{padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.linebox .dim{color:var(--muted);opacity:.55}
+.linebox mark{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink);border-radius:4px;padding:1px 0;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.show{font-weight:600;padding:6px 0}
+.ok{color:var(--good)} .ko{color:var(--bad);text-decoration:underline;font-weight:700}
+.verdict{padding:10px 12px;border-radius:10px;font-weight:600}
+.verdict.good{background:var(--good-bg);color:var(--good)}
+.verdict.bad{background:var(--bad-bg);color:var(--bad)}
+textarea.ans,textarea.ta{width:100%;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);resize:none}
+textarea.ta{overflow:hidden;min-height:110px}
+textarea.ans{overflow:hidden;display:block}
+textarea.ans::placeholder{font-size:16px}
+textarea.edit{min-height:260px;overflow:auto}
+textarea.dictin{font:17px/1.4 var(--font-body);min-height:64px;overflow:auto}
+textarea.copybox{font-family:var(--font-mono);font-size:12px;min-height:90px;overflow:auto;word-break:break-all}
+input.num,select{width:100%;font-family:var(--font-body);font-size:17px;padding:10px 12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink)}
+input[type="range"]{width:100%;accent-color:var(--accent)}
+.out{padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.vout{min-height:calc(var(--rfs) * 1.35 * 1.3 + 26px)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 16px var(--font-body);padding:12px 18px;border-radius:10px;cursor:pointer;flex:1;min-width:140px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.progress{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.progress>i{display:block;height:100%;background:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--bg);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-family:var(--font-mono);font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.full{padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);overflow-x:auto}
+.seg,.pick{border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.st-n{color:var(--muted)}
+.st-r{background:var(--r-bg);color:var(--r-ink)}
+.st-f{background:var(--f-bg);color:var(--f-ink)}
+.st-c{background:var(--c-bg);color:var(--c-ink)}
+.st-s{background:var(--s-bg);color:var(--s-ink)}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:13px;font-weight:700;line-height:1.6}
+.tag.st-n{border:1px solid var(--line)}
+.sum{display:flex;gap:6px;flex-wrap:wrap}
+.why{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600}
+details.how{font-size:14px;color:var(--muted)}
+details.how summary{cursor:pointer;font-weight:600}
+details.how p{margin:8px 0}
+.pick{cursor:pointer}
+.pick.sel{background:var(--accent);color:var(--accent-ink);outline:2px solid var(--accent)}
+.pickbar{position:sticky;bottom:0;background:var(--surface);padding:12px 0 4px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.startinfo{font-weight:700}
+.legend{display:flex;gap:8px;align-items:center;font-size:13px;flex-wrap:wrap}
+.legend .tag{font-size:13px}
+.nx{font-size:15px;word-break:break-all;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.progress>i{transition:width .25s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><span class="pi" aria-hidden="true">π</span><h1>Mille décimales</h1></header>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" data-tab="review">Réviser<span class="badge" id="badge">0</span></button>
+    <button class="tab" role="tab" data-tab="learn">Apprendre</button>
+    <button class="tab" role="tab" data-tab="recite">Réciter</button>
+    <button class="tab" role="tab" data-tab="note">Ma note</button>
+  </nav>
+  <main id="main"></main>
+</div>
+<script>
+/*PURE-START*/
+const D="%%D%%";
+const DEFAULT_NOTE=%%NOTE%%;
+const GOAL=1000, DAY=86400000, KEY="pi-note-v4", OLDKEY="pi-note-v3", INITIAL_LEVEL=550;
+/* Seuils (sur 1000) qui traduisent le score fin de chaque chiffre en 4 états, poids du tirage en révision, scores de départ */
+const TH={r:400,f:650,c:850}, WEIGHTS={r:6,f:3,c:1}, START_LEVEL=600, START_LEARN=500;
+const STATUS={r:"Raté",f:"Fragile",c:"En cours",s:"Solide",n:"Pas encore appris"};
+
+/* Alignement entre les chiffres attendus et ceux donnés : un oubli ou un chiffre en trop ne rend faux que le chiffre concerné, pas toute la suite */
+function align(e,t){
+  const L=e.length,M=t.length,dp=[];
+  for(let i=0;i<=L;i++){dp.push(new Array(M+1).fill(0));dp[i][0]=i;}
+  for(let j=0;j<=M;j++)dp[0][j]=j;
+  for(let i=1;i<=L;i++)for(let j=1;j<=M;j++)dp[i][j]=Math.min(dp[i-1][j-1]+(e[i-1]===t[j-1]?0:1),dp[i-1][j]+1,dp[i][j-1]+1);
+  const ok=new Array(L).fill(false);let i=L,j=M;
+  while(i>0&&j>0){
+    if(e[i-1]===t[j-1]&&dp[i][j]===dp[i-1][j-1]){ok[i-1]=true;i--;j--;}
+    else if(dp[i][j]===dp[i-1][j-1]+1){i--;j--;}
+    else if(dp[i][j]===dp[i-1][j]+1){i--;}
+    else j--;
+  }
+  return ok;
+}
+let S,P;
+
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function today(){const d=new Date();return Math.floor((d.getTime()-d.getTimezoneOffset()*60000)/DAY);}
+
+/* Lit la note : vérifie chaque chiffre contre π et découpe en morceaux d'environ 10 chiffres sans casser un groupe ni une ligne */
+function parse(raw){
+  const pos=[],line=[],tok=[];let ln=1,t=-1,gap=true;
+  for(let i=0;i<raw.length;i++){
+    const c=raw[i];
+    if(c>="0"&&c<="9"){
+      const k=pos.length;
+      if(k>=D.length)return {err:"Ta note dépasse les "+(D.length-1)+" décimales que l’app connaît (ligne "+ln+")."};
+      if(c!==D[k])return {err:(k===0?"Ligne 1 : la note doit commencer par 3.":"Ligne "+ln+", décimale "+k+" : tu as écrit "+c+", π donne "+D[k]+"."),k};
+      if(gap)t++;gap=false;
+      pos.push(i);line.push(ln);tok.push(t);
+    }else if(c==="\n"){ln++;gap=true;}
+    else if(c===" "||c==="\t"||c==="\r"||c===" "){gap=true;}
+    else if(c==="."||c===","){}
+    else return {err:"Ligne "+ln+" : le caractère « "+c+" » n’est pas accepté. Seuls les chiffres, les espaces, les retours à la ligne et le point après le 3 le sont."};
+  }
+  if(!pos.length)return {err:"La note ne contient aucun chiffre."};
+  const segs=[];let i=0;
+  while(i<pos.length){
+    const L=line[i];let j=i;while(j<pos.length&&line[j]===L)j++;
+    const ls=[];let a=i,k=i;
+    while(k<j){
+      let e=k;while(e+1<j&&tok[e+1]===tok[k])e++;
+      if(e-a+1>=10){ls.push([a,e]);a=e+1;}
+      k=e+1;
+    }
+    if(a<j){if(j-a<5&&ls.length)ls[ls.length-1][1]=j-1;else ls.push([a,j-1]);}
+    ls.forEach(([s,e])=>segs.push({s,e,line:L}));
+    i=j;
+  }
+  const byStart={};segs.forEach((x,ix)=>byStart[x.s]=ix);
+  return {raw,pos,line,segs,byStart,n:pos.length};
+}
+function sep(k){return P.raw.slice(P.pos[k-1]+1,P.pos[k]);}
+function lead(k){if(k===0)return P.raw.slice(0,P.pos[0]);const s=sep(k),i=s.lastIndexOf("\n");return i>=0?s.slice(i+1):"";}
+/* Chiffres tapés à partir de l'indice start, remis en forme comme dans la note */
+function plain(start,d){if(!d.length)return "";let s=lead(start);for(let j=0;j<d.length;j++){if(j>0)s+=sep(start+j);s+=d[j];}return s;}
+function rangeText(a,b,withLead){let s=withLead?lead(a):"";for(let k=a;k<=b;k++){if(k>a)s+=sep(k);s+=D[k];}return s;}
+
+/* Transforme ce que la reconnaissance vocale a entendu (chiffres ou nombres en toutes lettres) en suite de chiffres */
+const NUMW={"zéro":0,"zero":0,"un":1,"une":1,"deux":2,"trois":3,"quatre":4,"cinq":5,"six":6,"sept":7,"huit":8,"neuf":9,"dix":10,"onze":11,"douze":12,"treize":13,"quatorze":14,"quinze":15,"seize":16,"vingt":20,"vingts":20,"trente":30,"quarante":40,"cinquante":50,"soixante":60,"cent":100,"cents":100,"mille":1000};
+function frToDigits(txt){
+  const toks=String(txt).toLowerCase().replace(/[-–]/g," ").split(/[^0-9a-zàâçéèêëîïôûùüÿœ]+/).filter(Boolean);
+  let out="",cur=null;
+  const flush=()=>{if(cur){out+=String(cur.v);cur=null;}};
+  const kind=v=>v===1000?"thou":v===100?"hund":v>=20?(v===60?"t60":"tens"):v>=10?"teen":"unit";
+  const start=v=>{flush();cur={v,l:kind(v)};};
+  for(const t of toks){
+    if(/^\d+$/.test(t)){flush();out+=t;continue;}
+    if(!(t in NUMW))continue;
+    const v=NUMW[t];
+    if(v===0){flush();out+="0";continue;}
+    if(!cur){start(v);continue;}
+    const l=cur.l;
+    if(v===1000){if(cur.v<1000){cur.v*=1000;cur.l="thou";}else start(v);continue;}
+    if(v===100){
+      if(l==="unit"&&cur.v<10){cur.v*=100;cur.l="hund";}
+      else if(l==="unit"&&cur.v>1000&&cur.v%1000<10){const u=cur.v%1000;cur.v+=u*99;cur.l="hund";}
+      else if(l==="thou"){cur.v+=100;cur.l="hund";}
+      else start(v);
+      continue;
+    }
+    if(v>=20){
+      if(v===20&&l==="unit"&&cur.v%100===4){cur.v+=76;cur.l="t80";}
+      else if(l==="hund"||l==="thou"){cur.v+=v;cur.l=kind(v);}
+      else start(v);
+      continue;
+    }
+    if(v>=10){
+      if((l==="t60"||l==="t80")&&cur.v%20===0){cur.v+=v;cur.l="teen";}
+      else if(l==="hund"||l==="thou"){cur.v+=v;cur.l="teen";}
+      else start(v);
+      continue;
+    }
+    if((l==="tens"||l==="t60"||l==="t80")&&cur.v%10===0){cur.v+=v;cur.l="u2";}
+    else if(l==="teen"&&v>=7&&cur.v%10===0){cur.v+=v;cur.l="u2";}
+    else if(l==="hund"||l==="thou"){cur.v+=v;cur.l="unit";}
+    else start(v);
+  }
+  flush();
+  return out;
+}
+/*PURE-END*/
+
+const $=s=>document.querySelector(s);
+const main=$("#main");
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+/* Sur iPhone et iPad, la reconnaissance s'arrête après chaque phrase (le mode continu y est instable) */
+const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+let tab="review";
+let rv={cur:null,recent:[],k:0,force:null,total:0,ok:0};
+let ln={s:null,phase:"show"};
+let rc={o:0,phase:"pick",over:false};
+let ui={confirmLevel:false,editing:false,draft:"",copyMsg:"",bk:null,confirmRestore:false,lvlDraft:null,lvlMsg:""};
+let rec=null,micOff=false;
+
+/* Score fin par chiffre : S.d[i] = [maîtrise sur 1000, nombre de passages, erreurs d'affilée], vide si pas encore appris.
+   Chaque passage rapproche la maîtrise de 1000 (juste) ou de 0 (faux) d'un pas qui rétrécit avec l'expérience du chiffre :
+   un chiffre bien établi bouge peu sur une erreur isolée, et 3 erreurs d'affilée sur le même chiffre le mettent en raté.
+   L'état d'un morceau est celui de son chiffre le plus faible. */
+function stepOf(n){return Math.max(0.06,1/(n+4));}
+function updDigit(i,ok,w){
+  const t=S.d[i];if(!t)return;
+  const e=stepOf(t[1])*w;
+  if(ok){t[0]+=e*(1000-t[0]);t[2]=0;}else{t[0]-=e*t[0];t[2]++;if(t[2]>=3)t[0]=Math.min(t[0],350);}
+  t[0]=Math.round(t[0]);t[1]++;
+}
+function segScore(x){let m=1000;for(let k=x.s;k<=x.e;k++){if(!S.d[k])return null;m=Math.min(m,S.d[k][0]);}return m;}
+function statusOfScore(v){return v===null?"n":v<TH.r?"r":v<TH.f?"f":v<TH.c?"c":"s";}
+function segStatus(x){return statusOfScore(segScore(x));}
+function knownCount(){let i=1;while(i<P.n&&S.d[i])i++;return i-1;}
+function initState(){
+  const s={v:4,note:DEFAULT_NOTE,d:[],sl:{},best:0,fs:17,rfs:32,mode:"alt",rc:0,every:50};
+  try{
+    const o=JSON.parse(localStorage.getItem(OLDKEY)||"null");
+    if(o&&o.v===3&&typeof o.note==="string"&&!parse(o.note).err){
+      s.note=o.note;["fs","rfs","mode","every","best","rc"].forEach(k=>{if(o[k]!==undefined)s[k]=o[k];});
+      const map={r:300,f:600,c:720,s:880};
+      parse(s.note).segs.forEach(x=>{const t=o.segs&&o.segs[x.s];if(!t)return;const st=t.bad?"r":t.k>=4?"s":t.k>=2?"c":"f";for(let k=x.s;k<=x.e;k++)s.d[k]=[map[st],1,0];s.sl[x.s]=t.last||0;});
+      return s;
+    }
+  }catch(e){}
+  for(let k=0;k<=INITIAL_LEVEL;k++)s.d[k]=[START_LEVEL,0,0];
+  return s;
+}
+function validState(o){return o&&o.v===4&&typeof o.note==="string"&&Array.isArray(o.d)&&!parse(o.note).err;}
+function load(){try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);if(validState(o))return o;}}catch(e){}return initState();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function fillDefaults(){if(!S.rfs)S.rfs=32;if(!S.fs)S.fs=17;if(!S.mode)S.mode="alt";if(!S.best)S.best=0;if(!S.rc)S.rc=0;if(!S.every)S.every=50;if(!S.d)S.d=[];if(!S.sl)S.sl={};}
+function applyFs(){const r=document.documentElement.style;r.setProperty("--fs",S.fs+"px");r.setProperty("--rfs",S.rfs+"px");}
+function stopRec(){if(rec){const r=rec;rec=null;r.onresult=r.onend=r.onerror=null;try{r.abort();}catch(e){}}}
+
+function segOf(s){return P.segs[P.byStart[s]];}
+function learned(){return P.segs.filter(x=>segScore(x)!==null);}
+function pools(){const p={r:[],f:[],c:[],s:[]};P.segs.forEach(x=>{const v=segScore(x);if(v!==null)p[statusOfScore(v)].push(x.s);});return p;}
+function updBadge(){const n=pools().r.length,b=$("#badge");b.textContent=n;b.style.display=n?"":"none";}
+function tag(k,txt){return '<span class="tag st-'+k+'">'+(txt||STATUS[k])+"</span>";}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function segLabel(x){return "Ligne "+x.line+" · "+(x.s===0?"3 et décimales 1 à "+x.e:"décimales "+x.s+" à "+x.e);}
+function cueHtml(x){
+  const i=P.byStart[x.s];
+  if(i===0)return '<div class="label">Début de π</div>';
+  const pr=P.segs[i-1];
+  const lab=pr.line!==x.line?"Fin de la ligne "+pr.line+", tu passes à la ligne "+x.line:"Juste avant";
+  return '<div class="cuebox"><div class="label">'+lab+'</div><div class="note cue">… '+esc(rangeText(pr.s,pr.e))+'</div></div>';
+}
+function diffHtml(x,d){
+  let h=esc(lead(x.s));
+  for(let k=x.s;k<=x.e;k++){if(k>x.s)h+=esc(sep(k));const c=d[k-x.s];h+=c===D[k]?'<span class="ok">'+c+'</span>':'<span class="ko">'+(c||"·")+'</span>';}
+  return h;
+}
+function lineHtml(L,hl){
+  let h="",first=true;
+  P.segs.forEach(x=>{if(x.line!==L)return;if(!first)h+=esc(sep(x.s));const t=esc(rangeText(x.s,x.e,first));h+=x.s===hl?"<mark>"+t+"</mark>":'<span class="dim">'+t+"</span>";first=false;});
+  return h;
+}
+function autosize(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}
+function plural(v,w){return v+" "+w+(v>1?"s":"");}
+
+function typeBox(x,cb){
+  const len=x.e-x.s+1;
+  $("#answer").innerHTML='<textarea id="inp" class="note big ans" rows="1" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="'+len+' chiffres'+(x.s===0?", en commençant par 3":"")+'" aria-label="Les chiffres de ce morceau"></textarea>'+
+    '<div class="row"><button class="btn" id="skip" type="button">Je ne sais pas</button></div>';
+  const inp=$("#inp"),skip=$("#skip");inp.focus();autosize(inp);
+  let done=false;
+  const digits=()=>inp.value.replace(/\D/g,"").slice(0,len);
+  const fin=()=>{if(done)return;done=true;inp.disabled=true;cb(digits());};
+  inp.addEventListener("input",()=>{const d=digits();inp.value=plain(x.s,d);inp.setSelectionRange(inp.value.length,inp.value.length);autosize(inp);skip.textContent=d.length?"Valider":"Je ne sais pas";if(d.length===len)fin();});
+  $("#skip").onclick=fin;
+}
+
+/* Réponse à voix haute : dictée du clavier (iPhone, ou micro du navigateur refusé), reconnaissance du navigateur ailleurs, et en dernier recours on dit le morceau puis on compare soi-même */
+function voiceBox(x,done,toKeys){
+  const len=x.e-x.s+1,A=$("#answer"),exp=D.substr(x.s,len);
+  const selfCheck=why=>{
+    stopRec();
+    A.innerHTML=(why?'<p class="muted">'+why+"</p>":"")+
+      '<div class="row"><button class="btn primary" id="reveal" type="button">Je l’ai dit, afficher le morceau</button><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button></div>';
+    $("#reveal").onclick=()=>{
+      A.innerHTML='<div class="note big show">'+esc(rangeText(x.s,x.e,true))+'</div><div class="row"><button class="btn primary" id="sg1" type="button">Je l’avais juste</button><button class="btn" id="sg0" type="button">Je me suis trompé</button></div>';
+      $("#sg1").onclick=()=>done(null,true,false);
+      $("#sg0").onclick=()=>done(null,false,false);
+    };
+    $("#tokeys").onclick=toKeys;
+  };
+  const dictBox=why=>{
+    stopRec();
+    A.innerHTML=(why?'<p class="muted">'+why+"</p>":"")+
+      '<div id="vout" class="note big out vout" aria-live="polite"></div>'+
+      '<p class="muted">Touche la zone de dictée, puis le micro du clavier, et dis le morceau. Les chiffres s’affichent au-dessus avec ton découpage.</p>'+
+      '<textarea id="dict" class="ans dictin" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Zone de dictée" aria-label="Zone de dictée"></textarea>'+
+      '<div class="row"><button class="btn primary" id="vcheck" type="button">Vérifier</button><button class="btn ghost" id="vreset" type="button">Effacer</button></div>'+
+      '<div class="row"><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button><button class="btn ghost" id="toself" type="button">Afficher et comparer</button></div>';
+    const ta=$("#dict"),out=$("#vout");let fin=false;
+    const digits=()=>frToDigits(ta.value).slice(0,len);
+    const check=()=>{if(fin)return;fin=true;ta.blur();done(digits(),undefined,true);};
+    ta.addEventListener("input",()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d===exp)check();});
+    $("#vcheck").onclick=check;
+    $("#vreset").onclick=()=>{ta.value="";out.innerHTML="";ta.focus();};
+    $("#tokeys").onclick=toKeys;
+    $("#toself").onclick=()=>selfCheck("");
+    ta.focus();
+  };
+  if(!SR||micOff){dictBox("");return;}
+  let prev="",cur="",fin=false;
+  A.innerHTML='<div id="vout" class="note big out vout" aria-live="polite"></div>'+
+    '<p class="muted" id="vst">Touche « Parler » et dis le morceau, avec une petite pause entre tes groupes. Les chiffres s’affichent au fur et à mesure.</p>'+
+    '<div class="row"><button class="btn primary" id="talk" type="button">Parler</button><button class="btn" id="vcheck" type="button">Vérifier</button></div>'+
+    '<div class="row"><button class="btn ghost" id="vreset" type="button">Effacer</button><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button></div>'+
+    '<div class="row"><button class="btn ghost" id="todict" type="button">Le micro bloque ? Dictée du clavier</button></div>';
+  const out=$("#vout"),st=$("#vst"),talk=$("#talk");
+  const digits=()=>frToDigits(prev+" "+cur).slice(0,len);
+  const check=()=>{if(fin)return;fin=true;stopRec();done(digits(),undefined,true);};
+  const show=()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d===exp)check();};
+  const fallback="Le micro du navigateur n’est pas disponible ici. Utilise la dictée du clavier.";
+  const start=()=>{
+    stopRec();prev+=" "+cur;cur="";
+    let r;
+    try{r=new SR();}catch(e){dictBox(fallback);return;}
+    r.lang="fr-FR";r.continuous=!IOS;r.interimResults=true;r.maxAlternatives=1;
+    r.onresult=e=>{let t="";for(let i=0;i<e.results.length;i++)t+=" "+e.results[i][0].transcript;cur=t;show();};
+    r.onerror=e=>{
+      if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){micOff=true;if(!fin)dictBox(fallback);}
+      else if(e.error!=="no-speech"&&e.error!=="aborted"){st.textContent="La reconnaissance a échoué ("+e.error+"). Touche « Parler » pour réessayer ou passe au clavier.";}
+    };
+    r.onend=()=>{if(rec===r){rec=null;if(!fin&&document.body.contains(talk)){talk.disabled=false;talk.textContent="Continuer";st.textContent="Micro arrêté. Touche « Continuer » pour reprendre, ou « Vérifier » si tu as fini.";}}};
+    try{r.start();rec=r;talk.disabled=true;talk.textContent="J’écoute…";st.textContent="Dis le morceau, puis touche « Vérifier ».";}
+    catch(e){dictBox(fallback);}
+  };
+  talk.onclick=start;
+  $("#vcheck").onclick=check;
+  $("#vreset").onclick=()=>{stopRec();prev="";cur="";out.innerHTML="";talk.disabled=false;talk.textContent="Parler";st.textContent="Touche « Parler » et dis le morceau.";};
+  $("#tokeys").onclick=toKeys;
+  $("#todict").onclick=()=>dictBox("");
+}
+
+function render(){
+  stopRec();
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
+  updBadge();
+  ({review:viewReview,learn:viewLearn,recite:viewRecite,note:viewNote})[tab]();
+}
+
+/* Réviser : révisions sans fin. Un contrôle de solide à intervalle fixe, sinon tirage pondéré entre ratés, fragiles et en cours,
+   en prenant dans l'état tiré le morceau vu il y a le plus longtemps, et sans répéter les 2 derniers morceaux */
+function curMode(){return rv.force||(S.mode==="alt"?(rv.k%2?"voice":"keys"):S.mode);}
+function nextCheckIn(){const E=S.every,m=Math.ceil((S.rc+1)/E)*E;return m-(S.rc+1);}
+function pickNext(){
+  const p=pools(),fresh=a=>a.filter(v=>!rv.recent.includes(v));
+  const lastOf=v=>S.sl[v]||0;
+  const pickIn=a=>{const c=shuffle((fresh(a).length?fresh(a):a).slice());let b=c[0];c.forEach(v=>{if(lastOf(v)<lastOf(b))b=v;});return b;};
+  if(nextCheckIn()===0&&p.s.length)return {s:pickIn(p.s),why:"check"};
+  let keys=["r","f","c"].filter(k=>fresh(p[k]).length);
+  if(!keys.length)keys=["r","f","c"].filter(k=>p[k].length);
+  if(!keys.length)return p.s.length?{s:pickIn(p.s),why:"s"}:null;
+  let r=Math.random()*keys.reduce((a,k)=>a+WEIGHTS[k],0),k=keys[keys.length-1];
+  for(const kk of keys){if(r<WEIGHTS[kk]){k=kk;break;}r-=WEIGHTS[kk];}
+  return {s:pickIn(p[k]),why:k};
+}
+function viewReview(){
+  stopRec();
+  if(!learned().length){main.innerHTML='<section class="card"><h2>Rien à réviser</h2><p class="muted">Aucun morceau n’est encore en révision. Apprends-en dans « Apprendre » ou règle ton niveau dans « Ma note ».</p></section>';return;}
+  if(!rv.cur||!(rv.cur.s in P.byStart)||segScore(segOf(rv.cur.s))===null)rv.cur=pickNext();
+  const s=rv.cur.s,x=segOf(s),stat=segStatus(x),md=curMode(),p=pools(),nc=nextCheckIn();
+  const modes=[["alt","Alterner"],["keys","Clavier"],["voice","À voix haute"]].map(m=>'<button class="chip" type="button" role="radio" aria-checked="'+(S.mode===m[0])+'" data-m="'+m[0]+'">'+m[1]+"</button>").join("");
+  const every=[10,20,30,50,100].map(v=>'<option value="'+v+'"'+(v===S.every?" selected":"")+">tous les "+v+" morceaux</option>").join("");
+  main.innerHTML='<section class="card rv"><div class="toprow"><div class="label">'+segLabel(x)+'</div><div class="sz"><button class="szb" type="button" data-d="-2" aria-label="Réduire les chiffres">A−</button><button class="szb" type="button" data-d="2" aria-label="Agrandir les chiffres">A+</button></div></div>'+
+    '<div class="sum">'+["r","f","c","s"].map(k=>tag(k,STATUS[k]+" "+p[k].length)).join("")+"</div>"+
+    '<div class="modes" role="radiogroup" aria-label="Façon de répondre">'+modes+"</div>"+
+    '<div class="why"><span>Ce morceau :</span>'+tag(stat)+(rv.cur.why==="check"?"<span>Contrôle d’un morceau solide</span>":"")+"</div>"+
+    cueHtml(x)+'<div class="howto">'+(md==="keys"?"Tape le morceau":"Dis le morceau à voix haute")+'</div><div id="answer"></div>'+
+    '<div class="label">Séance : '+rv.total+" morceau"+(rv.total>1?"x":"")+", "+rv.ok+" juste"+(rv.ok>1?"s":"")+(p.s.length?" · prochain contrôle d’un solide dans "+plural(nc,"morceau").replace("morceaus","morceaux"):"")+"</div>"+
+    '<details class="how"><summary>Comment l’app choisit le morceau</summary>'+
+    "<p>Chaque chiffre a un score de maîtrise qui monte à chaque bonne réponse et baisse à chaque erreur, de moins en moins vite à mesure que tu le connais. Une erreur isolée sur un chiffre bien su ne le fait presque pas bouger. Trois erreurs d’affilée sur le même chiffre le mettent en raté. Seul le chiffre faux est touché, pas le reste du morceau. La couleur d’un morceau est celle de son chiffre le plus faible.</p>"+
+    "<p>Les ratés reviennent le plus souvent, environ 6 fois sur 10. Les fragiles environ 3 fois sur 10, les en cours environ 1 fois sur 10. Dans chaque état, c’est le morceau vu il y a le plus longtemps qui passe, et les 2 derniers morceaux ne reviennent pas tout de suite.</p>"+
+    '<p>Un morceau solide est contrôlé à intervalle fixe :</p><select id="every" aria-label="Fréquence de contrôle des solides">'+every+"</select></details></section>";
+  document.querySelectorAll(".szb").forEach(btn=>btn.onclick=()=>{
+    S.rfs=Math.max(20,Math.min(56,S.rfs+Number(btn.dataset.d)));applyFs();save();
+    const inp=$("#inp");if(inp){autosize(inp);if(!inp.disabled)inp.focus();}
+  });
+  document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{S.mode=c.dataset.m;rv.force=null;save();viewReview();});
+  $("#every").onchange=e=>{S.every=Number(e.target.value);save();viewReview();};
+  const done=(d,okOv,voice)=>reviewDone(x,s,d,okOv,voice);
+  if(md==="keys")typeBox(x,d=>done(d,undefined,false));
+  else voiceBox(x,done,()=>{rv.force="keys";viewReview();});
+}
+function corrHtml(x,marks){
+  let h=esc(lead(x.s));
+  for(let k=x.s;k<=x.e;k++){if(k>x.s)h+=esc(sep(k));h+='<span class="'+(marks[k-x.s]?"ok":"ko")+'">'+D[k]+"</span>";}
+  return h;
+}
+function reviewDone(x,s,d,okOv,voice){
+  stopRec();
+  const exp=D.substr(x.s,x.e-x.s+1),a0=segStatus(x),snap=[];
+  for(let k=x.s;k<=x.e;k++)snap.push(S.d[k].slice());
+  let marks=null,ok;
+  if(d===null){ok=okOv;for(let k=x.s;k<=x.e;k++)updDigit(k,ok,ok?0.5:0.25);}
+  else{marks=align(exp,d);ok=marks.every(Boolean);for(let k=x.s;k<=x.e;k++)updDigit(k,marks[k-x.s],1);}
+  S.rc++;S.sl[s]=S.rc;
+  rv.recent=[s].concat(rv.recent.filter(v=>v!==s)).slice(0,2);
+  rv.k++;rv.force=null;rv.total++;if(ok)rv.ok++;rv.cur=null;
+  save();updBadge();
+  paintVerdict(x,s,d,marks,ok,voice,snap,a0);
+}
+function paintVerdict(x,s,d,marks,ok,voice,snap,a0){
+  const b=segStatus(x),move=a0===b?" Reste "+tag(b)+".":" Passe de "+tag(a0)+" à "+tag(b)+".";
+  let h="";
+  if(d!==null){
+    h+='<div class="label">'+(voice?"Ce que le micro a compris":"Ce que tu as tapé")+'</div><div class="note big out'+(ok?" ok":"")+'">'+(d?esc(plain(x.s,d)):"(rien)")+"</div>";
+    if(ok)h+='<div class="verdict good">Juste.'+move+"</div>";
+    else{
+      const bad=marks.filter(v=>!v).length;
+      h+='<div class="label">Correction, chiffres faux en rouge</div><div class="note big show">'+corrHtml(x,marks)+"</div>"+
+         '<div class="verdict bad">'+(bad>1?bad+" chiffres faux":"1 chiffre faux")+"."+move+"</div>";
+    }
+  }else{
+    h+='<div class="note big show">'+esc(rangeText(x.s,x.e,true))+'</div><div class="verdict '+(ok?"good":"bad")+'">'+(ok?"Juste.":"Faux.")+move+"</div>";
+  }
+  if(!ok&&voice)h+='<button class="btn ghost" id="misheard" type="button">Ce n’est pas ce que j’ai dit : compter juste</button>';
+  h+='<button class="btn primary" id="next" type="button">Suivant</button>';
+  $("#answer").innerHTML=h;
+  $("#next").onclick=render;$("#next").focus();
+  const mh=$("#misheard");
+  if(mh)mh.onclick=()=>{
+    for(let k=x.s;k<=x.e;k++){S.d[k]=snap[k-x.s].slice();updDigit(k,true,1);}
+    rv.ok++;save();updBadge();
+    const full=D.substr(x.s,x.e-x.s+1);
+    paintVerdict(x,s,full,full.split("").map(()=>true),true,false,snap,a0);
+  };
+}
+
+/* Apprendre : un morceau à la fois, montré dans sa ligne */
+function nextNew(){const x=P.segs.find(y=>segScore(y)===null);return x?x.s:-1;}
+function viewLearn(){
+  if(ln.s===null||!(ln.s in P.byStart)||segScore(segOf(ln.s))!==null){ln.s=nextNew();ln.phase="show";}
+  if(ln.s===-1){
+    const cov=P.n-1;
+    if(cov<GOAL){
+      main.innerHTML='<section class="card"><h2>Ta note est entièrement en révision</h2><p class="muted">Elle s’arrête à la décimale '+cov+". Pour aller vers 1000, ajoute la suite découpée à ta façon dans « Ma note ». L’app te donne les décimales suivantes à découper.</p>"+'<button class="btn primary" id="goedit" type="button">Compléter ma note</button></section>';
+      $("#goedit").onclick=()=>{tab="note";ui.editing=true;ui.draft=S.note;render();};
+    }else{
+      main.innerHTML='<section class="card"><h2>1000 décimales en révision</h2><p class="muted">Tout est dans ta liste. Le travail passe maintenant par « Réviser » et « Réciter ».</p></section>';
+    }
+    return;
+  }
+  const x=segOf(ln.s);
+  if(ln.phase==="show"){
+    main.innerHTML='<section class="card"><div class="label">Nouveau morceau · '+segLabel(x)+'</div>'+cueHtml(x)+
+      '<div class="label">Sa place dans la ligne '+x.line+'</div><div class="note linebox">'+lineHtml(x.line,x.s)+"</div>"+
+      '<div class="note big show">'+esc(rangeText(x.s,x.e,true))+"</div>"+
+      (()=>{let a=-1,b=-1;for(let k=x.s;k<=x.e;k++)if(S.d[k]){if(a<0)a=k;b=k;}return a<0?"":'<p class="muted">Tu connais déjà '+(a===b?"la décimale "+a:"les décimales "+a+" à "+b)+" de ce morceau, leur score est gardé.</p>";})()+
+      '<p class="muted">Lis-le trois fois à voix haute, groupe par groupe, en enchaînant avec la fin du morceau précédent. Puis teste.</p>'+
+      '<button class="btn primary" id="hide" type="button">Masquer et tester</button></section>';
+    $("#hide").onclick=()=>{ln.phase="test";render();};
+  }else{
+    main.innerHTML='<section class="card"><div class="label">Test · '+segLabel(x)+"</div>"+cueHtml(x)+'<div id="answer"></div></section>';
+    typeBox(x,d=>{
+      const ok=d===D.substr(x.s,x.e-x.s+1);
+      if(ok){for(let k=x.s;k<=x.e;k++)if(!S.d[k])S.d[k]=[START_LEARN,0,0];S.sl[x.s]=S.rc;save();updBadge();}
+      $("#answer").innerHTML='<div class="note big out">'+diffHtml(x,d)+"</div>"+
+        (ok?'<div class="verdict good">Morceau ajouté à tes révisions, en fragile.</div><button class="btn primary" id="go" type="button">Morceau suivant</button>'
+           :'<div class="verdict bad">Faux. Relis-le et reteste.</div><button class="btn primary" id="go" type="button">Revoir le morceau</button>');
+      $("#go").onclick=()=>{if(ok)ln.s=null;else ln.phase="show";render();};$("#go").focus();
+    });
+  }
+}
+
+/* Réciter : choix du départ sur la note affichée en entier, puis saisie continue */
+function startInfo(o){const x=segOf(o);return o===0?"Départ : le début (3.14…)":"Départ : ligne "+x.line+", décimale "+o;}
+function viewRecite(){
+  if(!(rc.o in P.byStart))rc.o=0;
+  if(rc.phase==="pick")recitePick();else reciteRun();
+}
+function recitePick(){
+  let h=esc(P.raw.slice(0,P.pos[0]));
+  P.segs.forEach((y,ix)=>{if(ix>0)h+=esc(sep(y.s));h+='<span class="pick'+(y.s===rc.o?" sel":"")+'" data-s="'+y.s+'">'+esc(rangeText(y.s,y.e))+"</span>";});
+  h+=esc(P.raw.slice(P.pos[P.n-1]+1));
+  main.innerHTML='<section class="card"><div class="label">Record depuis le début : '+S.best+" décimales</div>"+
+    '<p class="muted">Touche un morceau de ta note pour choisir où commencer, ou déplace le sélecteur avec les boutons.</p>'+
+    '<div class="note full" id="pnote">'+h+"</div>"+
+    '<div class="pickbar"><div class="startinfo" id="sinfo" aria-live="polite">'+startInfo(rc.o)+"</div>"+
+    '<div class="row"><button class="btn" id="pprev" type="button">Morceau précédent</button><button class="btn" id="pnext" type="button">Morceau suivant</button></div>'+
+    '<div class="row"><button class="btn ghost" id="pzero" type="button">Revenir au début</button><button class="btn primary" id="pgo" type="button">Réciter à partir d’ici</button></div></div></section>';
+  const note=$("#pnote");
+  const reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sel=(s,scroll)=>{
+    rc.o=s;
+    note.querySelectorAll(".pick.sel").forEach(e=>e.classList.remove("sel"));
+    const el=note.querySelector('[data-s="'+s+'"]');
+    if(el){el.classList.add("sel");if(scroll)el.scrollIntoView({block:"center",behavior:reduce?"auto":"smooth"});}
+    $("#sinfo").textContent=startInfo(s);
+  };
+  note.addEventListener("click",e=>{const el=e.target.closest(".pick");if(el)sel(Number(el.dataset.s),false);});
+  const step=d=>{const i=Math.max(0,Math.min(P.segs.length-1,P.byStart[rc.o]+d));sel(P.segs[i].s,true);};
+  $("#pprev").onclick=()=>step(-1);
+  $("#pnext").onclick=()=>step(1);
+  $("#pzero").onclick=()=>sel(0,true);
+  $("#pgo").onclick=()=>{rc.phase="run";render();window.scrollTo(0,0);};
+  if(rc.o>0){const el=note.querySelector(".pick.sel");if(el)el.scrollIntoView({block:"center"});}
+}
+function reciteRun(){
+  rc.over=false;
+  const o=rc.o,x=segOf(o),i=P.byStart[o];
+  let cue='<div class="label">Début de π</div>';
+  if(i>0){const pr=P.segs[i-1];cue='<div class="cuebox"><div class="label">'+(pr.line!==x.line?"Fin de la ligne "+pr.line:"Juste avant")+'</div><div class="note cue">… '+esc(rangeText(pr.s,pr.e))+"</div></div>";}
+  main.innerHTML='<section class="card"><div class="label">'+startInfo(o)+" · record depuis le début : "+S.best+"</div>"+cue+
+    '<textarea id="rin" class="note big ta" rows="3" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="'+(o===0?"Tape 314159…":"Tape la suite")+', les espaces et les retours à la ligne se placent seuls" aria-label="Récitation"></textarea>'+
+    '<div id="rout" class="note big out" hidden></div><div id="msg"></div>'+
+    '<div class="row"><button class="btn" id="again" type="button">Réessayer d’ici</button><button class="btn" id="pick" type="button">Changer de départ</button></div></section>';
+  $("#again").onclick=render;
+  $("#pick").onclick=()=>{rc.phase="pick";render();};
+  const rin=$("#rin"),out=$("#rout"),msg=$("#msg");
+  rin.focus();
+  const max=P.n-o,unit=o===0?"décimale":"chiffre";
+  const cnt=v=>o===0?Math.max(0,v-1):v;
+  const pl=(v,u)=>v+" "+u+(v>1?"s":"")+" juste"+(v>1?"s":"");
+  rin.addEventListener("input",()=>{
+    if(rc.over)return;
+    let d=rin.value.replace(/\D/g,"").slice(0,max);
+    let n=0;while(n<d.length&&d[n]===D[o+n])n++;
+    if(n<d.length){
+      d=d.slice(0,n+1);rc.over=true;
+      const v=cnt(n),k=o+n;
+      if(o===0&&v>S.best)S.best=v;
+      for(let j=0;j<n;j++)updDigit(o+j,true,0.5);
+      updDigit(k,false,0.5);save();updBadge();
+      let h=esc(lead(o));
+      for(let j=0;j<d.length;j++){if(j>0)h+=esc(sep(o+j));h+=j===n?'<span class="ko">'+d[j]+"</span>":d[j];}
+      rin.hidden=true;out.hidden=false;out.innerHTML=h;
+      const y=P.segs.find(z=>z.s<=k&&k<=z.e);
+      msg.innerHTML='<div class="verdict bad">'+pl(v,unit)+". Erreur "+(k===0?"sur le 3 du début":"à la décimale "+k+" (ligne "+P.line[k]+")")+" : tu as tapé "+d[n]+", c’était "+D[k]+'.</div><div class="label">La suite dans ta note</div><div class="note big show">'+esc(rangeText(k,y.e))+"</div>";
+      return;
+    }
+    rin.value=plain(o,d);rin.setSelectionRange(rin.value.length,rin.value.length);autosize(rin);
+    if(n===max){
+      rc.over=true;rin.disabled=true;
+      const v=cnt(n);
+      if(o===0&&v>S.best)S.best=v;
+      for(let j=0;j<n;j++)updDigit(o+j,true,0.5);
+      save();updBadge();
+      msg.innerHTML='<div class="verdict good">Fin de ta note atteinte sans faute : '+pl(v,unit)+"."+(P.n-1<GOAL?" Ajoute la suite dans « Ma note » pour aller plus loin.":"")+"</div>";
+    }else{
+      msg.innerHTML='<p class="muted">'+pl(cnt(n),unit)+"</p>";
+    }
+  });
+}
+
+/* Ma note : la note colorée par solidité, l'éditeur, les réglages et la sauvegarde */
+function noteHtml(){
+  let h=esc(P.raw.slice(0,P.pos[0]));
+  P.segs.forEach((x,ix)=>{
+    if(ix>0)h+=esc(sep(x.s));
+    const v=segScore(x);
+    if(v!==null){h+='<span class="seg st-'+statusOfScore(v)+'">'+esc(rangeText(x.s,x.e))+"</span>";return;}
+    let k=x.s;
+    while(k<=x.e){
+      const kn=!!S.d[k];let j=k;while(j+1<=x.e&&!!S.d[j+1]===kn)j++;
+      if(k>x.s)h+=esc(sep(k));
+      let m=1000;if(kn)for(let q=k;q<=j;q++)m=Math.min(m,S.d[q][0]);
+      h+='<span class="seg st-'+(kn?statusOfScore(m):"n")+'">'+esc(rangeText(k,j))+"</span>";
+      k=j+1;
+    }
+  });
+  return h+esc(P.raw.slice(P.pos[P.n-1]+1));
+}
+function checkDraft(){
+  const p=parse(ui.draft),m=$("#edmsg"),b=$("#edsave");
+  if(p.err){m.innerHTML='<div class="verdict bad">'+esc(p.err)+"</div>";b.disabled=true;return;}
+  const nx=D.substr(p.n,40);
+  m.innerHTML='<div class="verdict good">Note valide : '+(p.n-1)+" décimales vérifiées contre π.</div>"+
+    (nx.length?'<div class="label">Décimales '+p.n+" à "+(p.n+nx.length-1)+', à découper à ta façon</div><div class="mono nx">'+nx.replace(/(.{10})/g,"$1 ").trim()+"</div>":"");
+  b.disabled=false;
+}
+function backupCode(){return "PI4:"+btoa(unescape(encodeURIComponent(JSON.stringify(S))));}
+function readBackup(txt){
+  const t=String(txt),m=t.match(/PI(\d+)\s*:\s*([A-Za-z0-9+\/=\s]+)/);
+  if(!m)return {err:"Ce texte ne contient pas de code de sauvegarde. Le code commence par « PI4: »."};
+  if(m[1]!=="4")return {err:"Ce code vient d’une ancienne version de l’app et ne peut plus être restauré."};
+  let o;
+  try{o=JSON.parse(decodeURIComponent(escape(atob(m[2].replace(/\s+/g,"")))));}
+  catch(e){return {err:"Le code est incomplet : il a sans doute été coupé pendant la copie ("+m[2].replace(/\s+/g,"").length+" caractères collés). Recopie-le en entier."};}
+  return validState(o)?{s:o}:{err:"Ce code de sauvegarde est abîmé."};
+}
+function viewNote(){
+  const lr=learned(),p=pools(),cont=knownCount();
+  let body;
+  if(ui.editing){
+    body='<p class="muted">Colle ici ta note mise à jour, ou complète-la à la fin. Chaque chiffre est vérifié contre π avant l’enregistrement.</p>'+
+      '<textarea id="ed" class="note ta edit" spellcheck="false" autocorrect="off" autocapitalize="off" aria-label="Texte de ma note"></textarea><div id="edmsg"></div>'+
+      '<div class="row"><button class="btn primary" id="edsave" type="button">Enregistrer</button><button class="btn" id="edcancel" type="button">Annuler</button></div>';
+  }else{
+    body='<div class="note full">'+noteHtml()+"</div>"+
+      '<div class="legend">'+["r","f","c","s"].map(k=>tag(k,STATUS[k]+" "+p[k].length)).join("")+tag("n",STATUS.n+" "+(P.segs.length-lr.length))+"</div>"+
+      '<div class="row"><button class="btn primary" id="edit" type="button">Modifier ma note</button><button class="btn" id="copy" type="button">Copier ma note</button></div>'+
+      (ui.copyMsg?'<p class="muted">'+ui.copyMsg+"</p>":"");
+  }
+  let bk='<div class="row"><button class="btn" id="bkcopy" type="button">Copier ma sauvegarde</button><button class="btn" id="bkopen" type="button">Restaurer une sauvegarde</button></div>';
+  if(ui.bk==="copy")bk+='<div id="bkmsg" class="muted"></div><textarea id="bkout" class="ta copybox" spellcheck="false" aria-label="Code de sauvegarde"></textarea>';
+  if(ui.bk==="restore")bk+='<textarea id="bkin" class="ta copybox" placeholder="Colle ici ton code de sauvegarde (il commence par PI1000:)" aria-label="Code de sauvegarde à restaurer"></textarea><div id="bkmsg"></div><button class="btn'+(ui.confirmRestore?" primary":"")+'" id="bkgo" type="button">'+(ui.confirmRestore?"Confirmer : remplacer ma note et ma progression":"Restaurer")+"</button>";
+  main.innerHTML='<section class="card"><h2>Ma note</h2>'+
+    '<div class="stats"><div class="stat"><b>'+(P.n-1)+'</b><span>décimales dans ta note, sur '+GOAL+'</span></div>'+
+    '<div class="stat"><b>'+cont+'</b><span>décimales connues</span></div>'+
+    '<div class="stat"><b>'+p.s.length+"/"+lr.length+'</b><span>morceaux solides</span></div>'+
+    '<div class="stat"><b>'+S.best+'</b><span>record de récitation</span></div></div>'+
+    body+
+    '<label class="label" for="fs">Taille du texte : <span id="fsv">'+S.fs+'</span> px</label><input id="fs" type="range" min="13" max="28" step="1" value="'+S.fs+'"></section>'+
+    '<section class="card"><h2>Sauvegarde</h2><p class="muted">Ta note et ta progression restent dans ce navigateur uniquement. Copie ta sauvegarde pour la garder ailleurs, ou pour la transférer vers l’app installée sur ton écran d’accueil.</p>'+bk+"</section>"+
+    '<section class="card"><h2>Régler mon niveau</h2><p class="muted">Indique jusqu’à quelle décimale tu sais réciter. Les décimales déjà révisées gardent leur score, les nouvelles arrivent en fragile, et celles après ce point repartent dans « Apprendre ».</p>'+
+    '<input id="lvl" class="num" type="number" inputmode="numeric" min="0" max="'+(P.n-1)+'" value="'+(ui.lvlDraft!==null?esc(ui.lvlDraft):cont)+'" aria-label="Décimales connues">'+
+    (ui.lvlMsg?'<div class="verdict '+(ui.confirmLevel?"bad":"good")+'">'+ui.lvlMsg+"</div>":"")+
+    '<button class="btn'+(ui.confirmLevel?" primary":"")+'" id="setlvl" type="button">'+(ui.confirmLevel?"Confirmer":"Appliquer ce niveau")+"</button></section>";
+  $("#fs").oninput=e=>{S.fs=Number(e.target.value);$("#fsv").textContent=S.fs;applyFs();save();};
+  if(ui.editing){
+    const ed=$("#ed");ed.value=ui.draft;checkDraft();
+    ed.addEventListener("input",()=>{ui.draft=ed.value;checkDraft();});
+    $("#edcancel").onclick=()=>{ui.editing=false;render();};
+    $("#edsave").onclick=()=>{
+      const p=parse(ui.draft);if(p.err)return;
+      S.note=ui.draft;P=p;save();ui.editing=false;rv.cur=null;ln.s=null;rc.o=0;rc.phase="pick";render();
+    };
+  }else{
+    $("#edit").onclick=()=>{ui.editing=true;ui.draft=S.note;ui.copyMsg="";render();};
+    $("#copy").onclick=()=>{
+      const done=t=>{ui.copyMsg=t;if(tab==="note"&&!ui.editing)render();};
+      const fail="Le navigateur a refusé la copie. Ouvre « Modifier ma note » et copie le texte à la main.";
+      try{navigator.clipboard.writeText(S.note).then(()=>done("Note copiée."),()=>done(fail));}catch(e){done(fail);}
+    };
+  }
+  $("#bkcopy").onclick=()=>{
+    ui.bk="copy";ui.confirmRestore=false;render();
+    const code=backupCode(),o=$("#bkout"),m=$("#bkmsg");o.value=code;
+    o.addEventListener("focus",()=>{try{o.setSelectionRange(0,o.value.length);}catch(e){}});
+    const fail=()=>{m.textContent="Copie automatique refusée : touche le code ci-dessous, sélectionne tout et copie-le ("+code.length+" caractères).";o.focus();};
+    try{navigator.clipboard.writeText(code).then(()=>{m.textContent="Sauvegarde copiée ("+code.length+" caractères). Colle-la dans l’app installée.";},fail);}catch(e){fail();}
+  };
+  $("#bkopen").onclick=()=>{ui.bk="restore";ui.confirmRestore=false;render();$("#bkin").focus();};
+  const go=$("#bkgo");
+  if(go){
+    const inp=$("#bkin");
+    if(ui.bkDraft)inp.value=ui.bkDraft;
+    inp.addEventListener("input",()=>{ui.bkDraft=inp.value;});
+    go.onclick=()=>{
+      const r=readBackup(inp.value);
+      if(r.err){$("#bkmsg").innerHTML='<div class="verdict bad">'+esc(r.err)+"</div>";ui.confirmRestore=false;return;}
+      if(!ui.confirmRestore){ui.confirmRestore=true;ui.bkDraft=inp.value;render();return;}
+      S=r.s;fillDefaults();P=parse(S.note);applyFs();save();
+      ui.bk=null;ui.bkDraft="";ui.confirmRestore=false;rv.cur=null;ln.s=null;rc.o=0;rc.phase="pick";
+      render();
+    };
+  }
+  $("#lvl").addEventListener("input",e=>{ui.lvlDraft=e.target.value;ui.confirmLevel=false;ui.lvlMsg="";});
+  $("#setlvl").onclick=()=>{
+    const raw=ui.lvlDraft!==null?ui.lvlDraft:$("#lvl").value;
+    const N=Math.max(0,Math.min(P.n-1,Math.floor(Number(raw)||0)));
+    let drop=0;for(let i=N+1;i<S.d.length;i++)if(S.d[i]&&S.d[i][1]>0)drop++;
+    if(drop&&!ui.confirmLevel){
+      ui.confirmLevel=true;ui.lvlDraft=String(N);
+      ui.lvlMsg=(drop>1?drop+" décimales déjà révisées après la "+N+"e vont repartir":"1 décimale déjà révisée après la "+N+"e va repartir")+" dans « Apprendre » et perdre leur score. Touche « Confirmer » pour continuer.";
+      render();return;
+    }
+    for(let i=0;i<=N;i++)if(!S.d[i])S.d[i]=[START_LEVEL,0,0];
+    S.d.length=N+1;
+    const part=P.segs.find(x=>x.s<=N&&N<x.e);
+    ui.lvlMsg="Niveau appliqué : décimales 1 à "+N+"."+(part?" Le morceau "+part.s+" à "+part.e+" est en partie connu : tu le termineras dans « Apprendre ».":"");
+    ui.confirmLevel=false;ui.lvlDraft=null;rv.cur=null;ln.s=null;save();render();
+  };
+}
+
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{tab=b.dataset.tab;ui.confirmLevel=false;ui.confirmRestore=false;ui.lvlMsg="";ui.lvlDraft=null;if(tab==="recite")rc.phase="pick";render();}));
+S=load();fillDefaults();P=parse(S.note);applyFs();
+render();
+%%SW%%
+</script>
+</body>
+</html>
