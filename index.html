@@ -88,6 +88,7 @@ textarea.ta{overflow:hidden;min-height:110px}
 textarea.ans{overflow:hidden;display:block}
 textarea.ans::placeholder{font-size:16px}
 textarea.edit{min-height:260px;overflow:auto}
+textarea.dictin{font:17px/1.4 var(--font-body);min-height:64px;overflow:auto}
 textarea.copybox{font-family:var(--font-mono);font-size:12px;min-height:90px;overflow:auto;word-break:break-all}
 input.num,select{width:100%;font-family:var(--font-body);font-size:17px;padding:10px 12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink)}
 input[type="range"]{width:100%;accent-color:var(--accent)}
@@ -232,6 +233,8 @@ function frToDigits(txt){
 const $=s=>document.querySelector(s);
 const main=$("#main");
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+/* Sur iPhone et iPad, la reconnaissance vocale du navigateur peut figer l'app installée : on passe par la dictée du clavier */
+const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
 let tab="review";
 let rv={started:false,queue:[],total:0,ok:0,retry:{},k:0,force:null};
 let ln={s:null,phase:"show"};
@@ -288,9 +291,9 @@ function typeBox(x,cb){
   $("#skip").onclick=fin;
 }
 
-/* Réponse à voix haute : reconnaissance vocale si le navigateur l'autorise, sinon on dit le morceau puis on compare soi-même */
+/* Réponse à voix haute : dictée du clavier (iPhone, ou micro du navigateur refusé), reconnaissance du navigateur ailleurs, et en dernier recours on dit le morceau puis on compare soi-même */
 function voiceBox(x,done,toKeys){
-  const len=x.e-x.s+1,A=$("#answer");
+  const len=x.e-x.s+1,A=$("#answer"),exp=D.substr(x.s,len);
   const selfCheck=why=>{
     stopRec();
     A.innerHTML=(why?'<p class="muted">'+why+"</p>":"")+
@@ -302,8 +305,25 @@ function voiceBox(x,done,toKeys){
     };
     $("#tokeys").onclick=toKeys;
   };
-  if(!SR){selfCheck("Ce navigateur ne reconnaît pas la voix. Dis le morceau à voix haute en le visualisant, puis compare.");return;}
-  if(micOff){selfCheck("Le micro n’est pas disponible ici. Dis le morceau à voix haute en le visualisant, puis compare.");return;}
+  const dictBox=why=>{
+    stopRec();
+    A.innerHTML=(why?'<p class="muted">'+why+"</p>":"")+
+      '<div id="vout" class="note big out vout" aria-live="polite"></div>'+
+      '<p class="muted">Touche la zone de dictée, puis le micro du clavier, et dis le morceau. Les chiffres s’affichent au-dessus avec ton découpage.</p>'+
+      '<textarea id="dict" class="ans dictin" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Zone de dictée" aria-label="Zone de dictée"></textarea>'+
+      '<div class="row"><button class="btn primary" id="vcheck" type="button">Vérifier</button><button class="btn ghost" id="vreset" type="button">Effacer</button></div>'+
+      '<div class="row"><button class="btn ghost" id="tokeys" type="button">Passer au clavier</button><button class="btn ghost" id="toself" type="button">Afficher et comparer</button></div>';
+    const ta=$("#dict"),out=$("#vout");let fin=false;
+    const digits=()=>frToDigits(ta.value).slice(0,len);
+    const check=()=>{if(fin)return;fin=true;ta.blur();done(digits(),undefined,true);};
+    ta.addEventListener("input",()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d===exp)check();});
+    $("#vcheck").onclick=check;
+    $("#vreset").onclick=()=>{ta.value="";out.innerHTML="";ta.focus();};
+    $("#tokeys").onclick=toKeys;
+    $("#toself").onclick=()=>selfCheck("");
+    ta.focus();
+  };
+  if(IOS||!SR||micOff){dictBox("");return;}
   let prev="",cur="",fin=false;
   A.innerHTML='<div id="vout" class="note big out vout" aria-live="polite"></div>'+
     '<p class="muted" id="vst">Touche « Parler » et dis le morceau, avec une petite pause entre tes groupes. Les chiffres s’affichent au fur et à mesure.</p>'+
@@ -312,20 +332,21 @@ function voiceBox(x,done,toKeys){
   const out=$("#vout"),st=$("#vst"),talk=$("#talk");
   const digits=()=>frToDigits(prev+" "+cur).slice(0,len);
   const check=()=>{if(fin)return;fin=true;stopRec();done(digits(),undefined,true);};
-  const show=()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d.length>=len)check();};
+  const show=()=>{const d=digits();out.innerHTML=esc(plain(x.s,d));if(d===exp)check();};
+  const fallback="Le micro du navigateur n’est pas disponible ici. Utilise la dictée du clavier.";
   const start=()=>{
     stopRec();prev+=" "+cur;cur="";
     let r;
-    try{r=new SR();}catch(e){selfCheck("Le micro n’a pas pu démarrer. Dis le morceau à voix haute, puis compare.");return;}
+    try{r=new SR();}catch(e){dictBox(fallback);return;}
     r.lang="fr-FR";r.continuous=true;r.interimResults=true;r.maxAlternatives=1;
     r.onresult=e=>{let t="";for(let i=0;i<e.results.length;i++)t+=" "+e.results[i][0].transcript;cur=t;show();};
     r.onerror=e=>{
-      if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){micOff=true;if(!fin)selfCheck("Le micro n’est pas autorisé ici. Dis le morceau à voix haute en le visualisant, puis compare.");}
+      if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){micOff=true;if(!fin)dictBox(fallback);}
       else if(e.error!=="no-speech"&&e.error!=="aborted"){st.textContent="La reconnaissance a échoué ("+e.error+"). Touche « Parler » pour réessayer ou passe au clavier.";}
     };
-    r.onend=()=>{if(rec===r){rec=null;if(!fin&&document.body.contains(talk)){talk.disabled=false;talk.textContent="Continuer";st.textContent="Micro arrêté. Touche « Continuer » pour reprendre ou « Vérifier ».";}}};
-    try{r.start();rec=r;talk.disabled=true;talk.textContent="J’écoute…";st.textContent="Dis le morceau.";}
-    catch(e){selfCheck("Le micro n’a pas pu démarrer. Dis le morceau à voix haute, puis compare.");}
+    r.onend=()=>{if(rec===r){rec=null;if(!fin&&document.body.contains(talk)){talk.disabled=false;talk.textContent="Continuer";st.textContent="Micro arrêté. Touche « Continuer » pour reprendre, ou « Vérifier » si tu as fini.";}}};
+    try{r.start();rec=r;talk.disabled=true;talk.textContent="J’écoute…";st.textContent="Dis le morceau, puis touche « Vérifier ».";}
+    catch(e){dictBox(fallback);}
   };
   talk.onclick=start;
   $("#vcheck").onclick=check;
@@ -530,13 +551,24 @@ function checkDraft(){
     (nx.length?'<div class="label">Décimales '+p.n+" à "+(p.n+nx.length-1)+', à découper à ta façon</div><div class="mono nx">'+nx.replace(/(.{10})/g,"$1 ").trim()+"</div>":"");
   b.disabled=false;
 }
-function backupCode(){return "PI1000:"+btoa(unescape(encodeURIComponent(JSON.stringify(S))));}
+function backupCode(){
+  const g=P.segs.filter(x=>S.segs[x.s]).map(x=>x.s+"."+S.segs[x.s].box+"."+S.segs[x.s].due).join(";");
+  const o={g,b:S.best,f:S.fs,r:S.rfs,m:S.mode};
+  if(S.note!==DEFAULT_NOTE)o.n=S.note;
+  return "PI2:"+btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+}
 function readBackup(txt){
-  try{
-    const t=String(txt).trim().replace(/^PI1000:/,"");
-    const o=JSON.parse(decodeURIComponent(escape(atob(t))));
-    return validState(o)?o:null;
-  }catch(e){return null;}
+  const t=String(txt),m=t.match(/PI(1000|2)\s*:\s*([A-Za-z0-9+\/=\s]+)/);
+  if(!m)return {err:"Ce texte ne contient pas de code de sauvegarde. Le code commence par « PI2: »."};
+  let o;
+  try{o=JSON.parse(decodeURIComponent(escape(atob(m[2].replace(/\s+/g,"")))));}
+  catch(e){return {err:"Le code est incomplet : il a sans doute été coupé pendant la copie ("+m[2].replace(/\s+/g,"").length+" caractères collés). Recopie-le en entier."};}
+  if(m[1]==="1000")return validState(o)?{s:o}:{err:"Ce code de sauvegarde est abîmé."};
+  const note=typeof o.n==="string"?o.n:DEFAULT_NOTE;
+  if(parse(note).err)return {err:"La note contenue dans ce code n’est pas valide."};
+  const segs={};
+  String(o.g||"").split(";").filter(Boolean).forEach(p=>{const [a,b,d]=p.split(".").map(Number);if(Number.isFinite(a)&&Number.isFinite(b)&&Number.isFinite(d))segs[a]={box:b,due:d};});
+  return {s:{v:2,note,segs,best:o.b||0,fs:o.f||17,rfs:o.r||32,mode:o.m||"alt"}};
 }
 function viewNote(){
   const learned=P.segs.filter(x=>S.segs[x.s]);
@@ -554,7 +586,7 @@ function viewNote(){
       (ui.copyMsg?'<p class="muted">'+ui.copyMsg+"</p>":"");
   }
   let bk='<div class="row"><button class="btn" id="bkcopy" type="button">Copier ma sauvegarde</button><button class="btn" id="bkopen" type="button">Restaurer une sauvegarde</button></div>';
-  if(ui.bk==="copy")bk+='<div id="bkmsg" class="muted"></div><textarea id="bkout" class="ta copybox" readonly aria-label="Code de sauvegarde"></textarea>';
+  if(ui.bk==="copy")bk+='<div id="bkmsg" class="muted"></div><textarea id="bkout" class="ta copybox" spellcheck="false" aria-label="Code de sauvegarde"></textarea>';
   if(ui.bk==="restore")bk+='<textarea id="bkin" class="ta copybox" placeholder="Colle ici ton code de sauvegarde (il commence par PI1000:)" aria-label="Code de sauvegarde à restaurer"></textarea><div id="bkmsg"></div><button class="btn'+(ui.confirmRestore?" primary":"")+'" id="bkgo" type="button">'+(ui.confirmRestore?"Confirmer : remplacer ma note et ma progression":"Restaurer")+"</button>";
   main.innerHTML='<section class="card"><h2>Ma note</h2>'+
     '<div class="stats"><div class="stat"><b>'+(P.n-1)+'</b><span>décimales dans ta note, sur '+GOAL+'</span></div>'+
@@ -587,8 +619,9 @@ function viewNote(){
   $("#bkcopy").onclick=()=>{
     ui.bk="copy";ui.confirmRestore=false;render();
     const code=backupCode(),o=$("#bkout"),m=$("#bkmsg");o.value=code;
-    const fail=()=>{m.textContent="Copie automatique refusée : sélectionne le code ci-dessous et copie-le.";o.focus();o.select();};
-    try{navigator.clipboard.writeText(code).then(()=>{m.textContent="Sauvegarde copiée. Garde-la dans tes notes, ou colle-la dans l’app installée.";},fail);}catch(e){fail();}
+    o.addEventListener("focus",()=>{try{o.setSelectionRange(0,o.value.length);}catch(e){}});
+    const fail=()=>{m.textContent="Copie automatique refusée : touche le code ci-dessous, sélectionne tout et copie-le ("+code.length+" caractères).";o.focus();};
+    try{navigator.clipboard.writeText(code).then(()=>{m.textContent="Sauvegarde copiée ("+code.length+" caractères). Colle-la dans l’app installée.";},fail);}catch(e){fail();}
   };
   $("#bkopen").onclick=()=>{ui.bk="restore";ui.confirmRestore=false;render();$("#bkin").focus();};
   const go=$("#bkgo");
@@ -597,10 +630,10 @@ function viewNote(){
     if(ui.bkDraft)inp.value=ui.bkDraft;
     inp.addEventListener("input",()=>{ui.bkDraft=inp.value;});
     go.onclick=()=>{
-      const o=readBackup(inp.value);
-      if(!o){$("#bkmsg").innerHTML='<div class="verdict bad">Ce code n’est pas une sauvegarde valide. Vérifie qu’il a été copié en entier.</div>';ui.confirmRestore=false;return;}
+      const r=readBackup(inp.value);
+      if(r.err){$("#bkmsg").innerHTML='<div class="verdict bad">'+esc(r.err)+"</div>";ui.confirmRestore=false;return;}
       if(!ui.confirmRestore){ui.confirmRestore=true;ui.bkDraft=inp.value;render();return;}
-      S=o;fillDefaults();P=parse(S.note);applyFs();save();
+      S=r.s;fillDefaults();P=parse(S.note);applyFs();save();
       ui.bk=null;ui.bkDraft="";ui.confirmRestore=false;rv.started=false;ln.s=null;rc.o=0;rc.phase="pick";
       render();
     };
@@ -616,7 +649,7 @@ function viewNote(){
 document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{tab=b.dataset.tab;ui.confirmLevel=false;ui.confirmRestore=false;if(tab==="recite")rc.phase="pick";render();}));
 S=load();fillDefaults();P=parse(S.note);applyFs();
 render();
-if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{});});}
+if("serviceWorker" in navigator){const had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener("controllerchange",()=>{if(had)location.reload();});window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{});});}
 </script>
 </body>
 </html>
